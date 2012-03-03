@@ -1,0 +1,204 @@
+#!/bin/sh
+#
+# build_bind.sh -- v1.5
+#
+# Written by: Matt Pascoe <matt@opennetadmin.com>
+#
+# License:
+#  build_bind.sh (hereafter referred to as "program") is free software;
+#  you can redistribute it and/or modify it under the terms of the GNU General
+#  Public License as published by the Free Software Foundation; either version
+#  2 of the License, or (at your option) any later version.
+#  Note that when redistributing modified versions of this source code, you
+#  must ensure that this disclaimer and the above coder's names are included
+#  VERBATIM in the modified code.
+# 
+# Disclaimer:
+#  This program is provided with no warranty of any kind, either expressed or
+#  implied.  It is the responsibility of the user (you) to fully research and
+#  comprehend the usage of this program.  As with any tool, it can be misused,
+#  either intentionally (you're a vandal) or unintentionally (you're a moron).
+#  THE AUTHOR(S) IS(ARE) NOT RESPONSIBLE FOR ANYTHING YOU DO WITH THIS PROGRAM
+#  or anything that happens because of your use (or misuse) of this program,
+#  including but not limited to anything you, your lawyers, or anyone else
+#  can dream up.  And now, a relevant quote directly from the GPL:
+# 
+# NO WARRANTY
+# 
+#  11. BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+#  FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
+#  OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+#  PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
+#  OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  THE ENTIRE RISK AS
+#  TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.  SHOULD THE
+#  PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
+#  REPAIR OR CORRECTION.
+# 
+# The GNU GPL can be found at http://www.fsf.org/copyleft/gpl.html
+# 
+# -----------------------------------------------------------------------
+# Description
+# Subversion info: $Id: build_bind 95 2012-01-15 03:56:43Z matt $
+#
+#
+# THIS IS A REFERENCE DESIGN BUILD SCRIPT, IT WORKS FOR ME BUT MAY NOT FOR YOU
+# IT IS INTENDED TO GIVE AN EXAMPLE OF HOW A SCRIPT LIKE THIS COULD BE BUILT.  IF IT WORKS
+# FOR YOU, GREAT!  IF NOT THEN MAKE WHATEVER ADJUSTMENTS TO IT YOU NEED TO GET IT WORKING!
+# ASK FOR HELP IN THE FORUMS IF NEEDED.
+#
+#
+# REQUIRES: dcm.pl, build_bind_server_domain_list module, build_bind_domain module and build_bind_conf module, working rndc for the local server,
+#
+# Since this script must restart the named daemon, it should be ran as the bind user or as root.
+#
+# dcm.pl should be working on your system and either in your path or you will need to put the full path to it in the DCM_PATH variable below.
+# You will need to have a user in the ONA system defined as "sys_build".. that user should have only read permissions and not update permissions.
+#
+# The tools rndc and named-checkconf must be in your path as well.
+#
+# Remember that the checks done by named-checkconf are only syntax checks.  They will not ensure that the content of your files is correct.
+# If you have missing records or incorrect data it could impact your environment or the functionality of other domain servers.
+#
+# By default the local host name is determined using "hostname -f" but can also be specified with the -s option.
+# The server name must match the FQDN of the server in ONA.  It must be the PRIMARY name, not an CNAME
+# or alternate A record.
+#
+# For ease of use, it is recommended to add /opt/ona/bin to your $PATH environment variable
+#
+# Add the following line to your system named.conf file. Probably in /etc/bind/named.conf or named.conf.local depending on your system.
+# The placement of this line could vary depending on how your distro organizes named.  named.conf.local should be used for ubuntu/debian based systems.
+#
+#     include "/opt/ona/etc/bind/named.conf.ona";
+#
+# You will need to execute the following dcm commands to automatically create the appropriate module entries:
+#
+# NOTE: this script was developed and tested on an ubuntu box.  Your mileage may vary on other distros.
+# NOTE: On my ubuntu box I had to modify the apparmor configuration in /etc/apparmor.d/usr.sbin.named to include "/opt/ona/etc/bind/** r,"
+# NOTE: to view example configs in the GUI you need to set build_dns_type to "bind" in the sys_config table
+#
+# -----------------------------------------------------------------------
+[ ! -r /etc/onabase ] && echo "[$0] ERROR: Unable to read /etc/onabase." && exit 1
+ONABASE=`cat /etc/onabase`
+
+# this will default to placing data files in /opt/ona/etc/bind, you can update the following for your system as needed
+# for things like chroot jails etc
+ONA_PATH="${ONABASE}/etc/bind"
+
+# Get the local hosts FQDN.  It will be an assumption!! that it is the same as the hostname in ONA
+# Also, the use of hostname -f can vary from system type to system type.  be aware!
+SRV_FQDN=`hostname -f`
+
+# Path to the dcm.pl command.  Also include any options that might be needed
+DCM_PATH="${ONABASE}/bin/dcm.pl"
+
+# Email settings for config_archive to send status information to (diffs etc)
+MAIL_SERVER=mail.example.com               # name or IP of the mail server to use
+MAIL_FROM=ona-build_dhcpd@$SRV_FQDN        # email address to use in the from field
+MAIL_TO=oncall@example.com                 # email address(es) to send our notifications to
+
+
+
+###################### No need to change anything below here ################################
+
+# This will log a message in a standardized way
+# Its job is simple.. take the message that was passed in and log it via some mechanism.
+# Currently, it echos to stdout and logs in syslog
+function ONA_LOG {
+    # Log it to the screen
+    [ $BATCHMODE ] || echo $(date +'%h %d %H:%M:%S') [ONA:$(basename $0)]: "$1"
+
+    # log it to syslog
+    logger -t [ONA:$(basename $0)] "$1"
+}
+
+# This function will exit with a status of 1 and if in batch mode, will print a success/fail message
+function ABEND {
+    [ $BATCHMODE ] && echo FAILURE
+    # send an email notification
+    sendEmail -s $MAIL_SERVER -f $MAIL_FROM -t $MAIL_TO \
+              -u "[ONA:$(basename $0)] $SRV_FQDN: Failure during BIND rebuild." \
+              -m "The DHCP server '$SRV_FQDN' has encountered a failure during its last rebuild, please check the status of the server.  You can try the following command on this server to display why this configuration test failed: $DHCPDBIN -t -cf $ONA_PATH/dhcpd.conf.ona.$TMSTAMP"
+    if [ $? -ne 0 ]
+    then
+        ONA_LOG "ERROR => There was an issue sending the notification email."
+    fi
+    exit 1
+}
+
+#### Process the commandline options
+USAGE="
+Usage: `basename $0` [-s <FQDN>] [-b] [-d]
+
+  -s     FQDN of the server you wish to build BIND configs for
+  -b     Enable batch mode (less logging for scripted runs)
+  -d     Enable debug output
+"
+
+while getopts "s:bd" options; do
+  case $options in
+    b ) BATCHMODE=1;;
+    d ) DEBUGON=1;;
+    s ) SRV_FQDN=$OPTARG;;
+    \? ) echo "$USAGE"
+         exit 1;;
+    * ) echo "$USAGE"
+         exit 1;;
+  esac
+done
+
+
+# Check that $ONA_PATH directory exists
+if ! test -d $ONA_PATH/zone_data
+then
+    ONA_LOG "ERROR => Unable to find directory '$ONA_PATH/zone_data', please create it."
+    ABEND
+fi
+
+[ $BATCHMODE ] || ONA_LOG "INFO => Building BIND DNS config for $SRV_FQDN..."
+
+
+# Lets get a list of domains for this server from the database
+#DOMAIN_LIST=`$DCM_PATH -r build_bind_server_domain_list server=$SRV_FQDN` || abend "Unable to determine domain list for server named $SRV_FQDN."
+if ! DOMAIN_LIST=`$DCM_PATH -r build_bind_server_domain_list server=$SRV_FQDN`
+then 
+    ONA_LOG "ERROR => Unable to determine domain list for server named $SRV_FQDN."
+    ABEND
+fi
+
+# build the named.conf.ona file
+# Note, I cut the first / off due to the DCM issue with paths
+if ! $DCM_PATH -r build_bind_conf path=`echo $ONA_PATH|cut -c2-60`/zone_data server=$SRV_FQDN > $ONA_PATH/named.conf.ona
+then
+    ONA_LOG "ERROR => Unable to build bind config file."
+    ABEND
+fi
+
+# loop through our domains and build the zonefile
+for DOMAIN in `echo $DOMAIN_LIST`
+do
+    if ! $DCM_PATH -r build_bind_domain domain=$DOMAIN > $ONA_PATH/zone_data/named-$DOMAIN
+    then
+        ONA_LOG "ERROR => Unable to build zonefile: named-$DOMAIN."
+        ABEND
+    fi
+done
+
+[ $BATCHMODE ] || ONA_LOG "INFO => Testing new config files for SYNTAX only..."
+
+# Test that our new config is syntacticaly correct
+# this assumes named-checkconf is in your path and that you are using the standard named.conf file path of /etc/bind/named.conf
+named-checkconf -z || abend "The resulting config files have a syntax error."
+
+# refresh the bind nameserver
+# there are a few ways to do this.. RNDC is probably "best" but not everyone has that configured so a SIGHUP should do the trick as well
+# also RNDC could use a reconfig or a reload.  for now I'm going for a full reload.. if it is a HUGE server, reconfig might be better.
+# though for now I'm rebuilding all the zones anyway.
+rndc reload || abend "Unable to reload the named daemon using the rndc command."
+
+# Or maybe this would be better?
+#/etc/init.d/bind9 reload || abend "Unable to reload the named daemon using the system init.d command."
+
+
+
+[ $BATCHMODE ] || ONA_LOG "INFO => Completed BIND configuration extraction and daemon reload."
