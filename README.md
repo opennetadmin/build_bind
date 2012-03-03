@@ -63,8 +63,10 @@ Now that it is installed you should be able to execute `/opt/ona/bin/build_bind`
 Once you have a successful rebuild of your configuration, you can then put the `/opt/ona/bin/build_bind` build script into a cron that runs at whatever interval you see as appropriate for your environment.  I would suggest at least 2 times a day all the way down to once every 15 minutes.  Remember, you can always run it on demand if needed.  You will need to run it as root since it needs to restart the daemon.
 
 Many modern linux systems use the /etc/cron.d method.  You can put ONA related cron jobs into this directory.  As an example you can create a file called /etc/cron.d/ona with the following content:
+
     # Please store only OpenNetAdmin related cron entries here.
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/:/opt/ona/bin
     
     # Rebuild BIND configuration file and restart daemon every hour
     0 * * * * root /opt/ona/bin/build_bind > /dev/null 2>&1
+
