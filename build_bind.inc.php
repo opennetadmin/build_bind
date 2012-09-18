@@ -407,12 +407,27 @@ EOF
         if ($dnsrecord['name']) $dnsrecord['name'] = $dnsrecord['name'].'.';
 
         if ($dnsrecord['type'] == 'A') {
+            $text .= ";" . $dnsrecord['type'] . "\n";
             // Find the interface record
             list($status, $rows, $interface) = ona_get_interface_record(array('id' => $dnsrecord['interface_id']));
             if ($status or !$rows) {
                 printmsg("ERROR => Unable to find interface record!",3);
                 $self['error'] = "ERROR => Unable to find interface record!";
                 return(array(5, $self['error'] . "\n"));
+            }
+
+            // Check this really is an A (IPv4) record, and not an AAAA (IPv6) address record
+            // 
+            // NOTE: This is a bit of a hack, and uses a regex posted on 
+            // http://mebsd.com/coding-snipits/php-regex-ipv6-with-preg_match-revisited.html
+            //
+            // Ideally this should be replaced by a proper address test
+            $regex = '/^(((?=(?>.*?(::))(?!.+\3)))\3?|([\dA-F]{1,4}(\3|:(?!$)|$)|\2))(?4){5}((?4){2}|(25[0-5]|(2[0-4]|1\d|[1-9])?\d)(\.(?7)){3})\z/i';
+            if (preg_match($regex, $interface['ip_addr_text'])) {
+              $dnsrecord['type'] = "AAAA";
+            }
+            else {
+              $dnsrecord['type'] = "A";
             }
 
             $fqdn = $dnsrecord['name'].$domain['fqdn'];
