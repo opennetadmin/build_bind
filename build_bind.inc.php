@@ -415,11 +415,26 @@ EOF
                 return(array(5, $self['error'] . "\n"));
             }
 
+            // Check this really is an A (IPv4) record, and not an AAAA (IPv6) address record
+            // 
+            // NOTE: This is a bit of a hack, and uses a regex posted on 
+            // http://mebsd.com/coding-snipits/php-regex-ipv6-with-preg_match-revisited.html
+            //
+            // Ideally this should be replaced by a proper address test
+            $regex = '/^(((?=(?>.*?(::))(?!.+\3)))\3?|([\dA-F]{1,4}(\3|:(?!$)|$)|\2))(?4){5}((?4){2}|(25[0-5]|(2[0-4]|1\d|[1-9])?\d)(\.(?7)){3})\z/i';
+            if (preg_match($regex, $interface['ip_addr_text'])) {
+              $dnsrecord['type'] = "AAAA";
+            }
+            else {
+              $dnsrecord['type'] = "A";
+            }
+
             $fqdn = $dnsrecord['name'].$domain['fqdn'];
             $text .= sprintf("%-50s %-8s IN  %-8s %-30s %s\n" ,$fqdn.'.',$dnsrecord['ttl'],$dnsrecord['type'],$interface['ip_addr_text'],$dnsrecord['notes']);
         }
 
         if ($dnsrecord['type'] == 'PTR') {
+            
             // Find the interface record
             list($status, $rows, $interface) = ona_get_interface_record(array('id' => $dnsrecord['interface_id']));
             if ($status or !$rows) {
@@ -431,6 +446,18 @@ EOF
             // Get the name info that the cname points to
             list($status, $rows, $ptr) = ona_get_dns_record(array('id' => $dnsrecord['dns_id']), '');
 
+            // Set the correct reverse zone, depending on the record
+            // type of the interface address
+            $regex = '/^(((?=(?>.*?(::))(?!.+\3)))\3?|([\dA-F]{1,4}(\3|:(?!$)|$)|\2))(?4){5}((?4){2}|(25[0-5]|(2[0-4]|1\d|[1-9])?\d)(\.(?7)){3})\z/i';
+            if (preg_match($regex, $interface['ip_addr_text'])) {
+              $rev_zone = ".ip6.arpa.";
+            }
+            else {
+              $rev_zone = ".in-addr.arpa.";
+            }
+
+            $text .= ";" . $interface['ip_addr_text'] . "\n";
+
             // If this is a delegation domain, find the subnet cidr
             if ($ptrdelegation) {
                 list($status, $rows, $subnet) = ona_get_subnet_record(array('id' => $interface['subnet_id']));
@@ -440,7 +467,7 @@ EOF
                 $ip_remainder  = substr($ip_last, strpos($ip_last,'.')).'.in-addr.arpa.';
                 $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,$ip_last_digit.'-'.ip_mangle($subnet['ip_mask'],'cidr').$ip_remainder,$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
             } else {
-                $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,ip_mangle($interface['ip_addr'],'flip').'.in-addr.arpa.',$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
+                $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,ip_mangle($interface['ip_addr'],'flip').$rev_zone,$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
             }
         }
 
