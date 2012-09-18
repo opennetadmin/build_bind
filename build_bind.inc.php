@@ -407,7 +407,6 @@ EOF
         if ($dnsrecord['name']) $dnsrecord['name'] = $dnsrecord['name'].'.';
 
         if ($dnsrecord['type'] == 'A') {
-            $text .= ";" . $dnsrecord['type'] . "\n";
             // Find the interface record
             list($status, $rows, $interface) = ona_get_interface_record(array('id' => $dnsrecord['interface_id']));
             if ($status or !$rows) {
