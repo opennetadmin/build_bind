@@ -366,6 +366,9 @@ EOF
     if (strpos(str_replace('in-addr.arpa', '', $domain['fqdn']),'-')) {
         $ptrdelegation=true;
     }
+    if (strpos(str_replace('ip6.arpa', '', $domain['fqdn']),'-')) {
+        $ptrdelegation=true;
+    }
 
     // Start building the named.conf - save it in $text
     $text = "; DNS zone file for {$domain['fqdn']} built on " . date($conf['date_format']) . "\n";
@@ -415,6 +418,9 @@ EOF
                 return(array(5, $self['error'] . "\n"));
             }
 
+            // Determine A record type if it is IPv6
+            $dnsrecord['type'] = (strpos($int['ip_addr_text'],':') ? 'AAAA' : 'A');
+
             $fqdn = $dnsrecord['name'].$domain['fqdn'];
             $text .= sprintf("%-50s %-8s IN  %-8s %-30s %s\n" ,$fqdn.'.',$dnsrecord['ttl'],$dnsrecord['type'],$interface['ip_addr_text'],$dnsrecord['notes']);
         }
@@ -431,16 +437,19 @@ EOF
             // Get the name info that the cname points to
             list($status, $rows, $ptr) = ona_get_dns_record(array('id' => $dnsrecord['dns_id']), '');
 
+            // set the ptr zone type for IPv6 records
+            $arpatype = (strpos($int['ip_addr_text'],':') ? 'ip6' : 'in-addr');
+
             // If this is a delegation domain, find the subnet cidr
             if ($ptrdelegation) {
                 list($status, $rows, $subnet) = ona_get_subnet_record(array('id' => $interface['subnet_id']));
 
                 $ip_last = ip_mangle($interface['ip_addr'],'flip');
                 $ip_last_digit = substr($ip_last, 0, strpos($ip_last,'.'));
-                $ip_remainder  = substr($ip_last, strpos($ip_last,'.')).'.in-addr.arpa.';
+                $ip_remainder  = substr($ip_last, strpos($ip_last,'.')).".${arpatype}.arpa.";
                 $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,$ip_last_digit.'-'.ip_mangle($subnet['ip_mask'],'cidr').$ip_remainder,$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
             } else {
-                $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,ip_mangle($interface['ip_addr'],'flip').'.in-addr.arpa.',$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
+                $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,ip_mangle($interface['ip_addr'],'flip').".${arpatype}.arpa.",$dnsrecord['ttl'],$dnsrecord['type'],$ptr['name'],$ptr['domain_fqdn'].'.',$dnsrecord['notes']);
             }
         }
 
