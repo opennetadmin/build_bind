@@ -302,7 +302,7 @@ function build_bind_domain($options="") {
     global $conf, $self, $onadb;
 
     // Version - UPDATE on every edit!
-    $version = '1.50';
+    $version = '1.51';
 
     printmsg("DEBUG => build_bind_domain({$options}) called", 3);
 
