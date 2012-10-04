@@ -419,7 +419,7 @@ EOF
             }
 
             // Determine A record type if it is IPv6
-            $dnsrecord['type'] = (strpos($int['ip_addr_text'],':') ? 'AAAA' : 'A');
+            $dnsrecord['type'] = (strpos($interface['ip_addr_text'],':') ? 'AAAA' : 'A');
 
             $fqdn = $dnsrecord['name'].$domain['fqdn'];
             $text .= sprintf("%-50s %-8s IN  %-8s %-30s %s\n" ,$fqdn.'.',$dnsrecord['ttl'],$dnsrecord['type'],$interface['ip_addr_text'],$dnsrecord['notes']);
@@ -438,7 +438,7 @@ EOF
             list($status, $rows, $ptr) = ona_get_dns_record(array('id' => $dnsrecord['dns_id']), '');
 
             // set the ptr zone type for IPv6 records
-            $arpatype = (strpos($int['ip_addr_text'],':') ? 'ip6' : 'in-addr');
+            $arpatype = (strpos($interface['ip_addr_text'],':') ? 'ip6' : 'in-addr');
 
             // If this is a delegation domain, find the subnet cidr
             if ($ptrdelegation) {
