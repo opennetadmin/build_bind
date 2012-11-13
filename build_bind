@@ -110,7 +110,7 @@ SYSTEMINIT="/etc/init.d/bind9 reload"
 
 # Email settings for config_archive to send status information to (diffs etc)
 MAIL_SERVER=mail.example.com               # name or IP of the mail server to use
-MAIL_FROM=ona-build_dhcpd@$SRV_FQDN        # email address to use in the from field
+MAIL_FROM=ona-build_bind@$SRV_FQDN         # email address to use in the from field
 MAIL_TO=oncall@example.com                 # email address(es) to send our notifications to
 
 
@@ -134,7 +134,7 @@ function ABEND {
     # send an email notification
     sendEmail -s $MAIL_SERVER -f $MAIL_FROM -t $MAIL_TO \
               -u "[ONA:$(basename $0)] $SRV_FQDN: Failure during BIND rebuild." \
-              -m "The DHCP server '$SRV_FQDN' has encountered a failure during its last rebuild, please check the status of the server.  You can try the following command on this server to display why this configuration test failed: $DHCPDBIN -t -cf $ONA_PATH/dhcpd.conf.ona.$TMSTAMP"
+              -m "The BIND server '$SRV_FQDN' has encountered a failure during its last rebuild, please check the status of the server.  You can try the following command on this server to display why this configuration test failed: $CHECKCOMMAND"
     if [ $? -ne 0 ]
     then
         ONA_LOG "ERROR => There was an issue sending the notification email."
