@@ -48,33 +48,41 @@
 # ASK FOR HELP IN THE FORUMS IF NEEDED.
 #
 #
-# REQUIRES: dcm.pl, build_bind_server_domain_list module, build_bind_domain module and build_bind_conf module, working rndc for the local server,
+# REQUIRES: dcm.pl, build_bind_server_domain_list module, build_bind_domain module and 
+# build_bind_conf module, working rndc for the local server.
 #
 # Since this script must restart the named daemon, it should be ran as the bind user or as root.
 #
-# dcm.pl should be working on your system and either in your path or you will need to put the full path to it in the DCM_PATH variable below.
-# You will need to have a user in the ONA system defined as "sys_build".. that user should have only read permissions and not update permissions.
+# dcm.pl should be working on your system and either in your path or you will need
+# to put the full path to it in the DCM_PATH variable below.
 #
 # The tools rndc and named-checkconf must be in your path as well.
 #
-# Remember that the checks done by named-checkconf are only syntax checks.  They will not ensure that the content of your files is correct.
-# If you have missing records or incorrect data it could impact your environment or the functionality of other domain servers.
+# Remember that the checks done by named-checkconf are only syntax checks.  They will not
+# ensure that the content of your files is correct. If you have missing records or 
+# incorrect data it could impact your environment or the functionality of other domain servers.
+# It is recomended that you run a BIND server under ONA control as a hidden master, then
+# slave other dns servers off of it that would service your end users.  This helps protect
+# against failures during build time causing outages for end users.
 #
-# By default the local host name is determined using "hostname -f" but can also be specified with the -s option.
-# The server name must match the FQDN of the server in ONA.  It must be the PRIMARY name, not an CNAME
-# or alternate A record.
+# By default the local host name is determined using "hostname -f" but can also 
+# be specified with the -s option. The server name must match the FQDN of the server 
+# in ONA.  It must be the PRIMARY name, not an CNAME or alternate A record.
 #
 # For ease of use, it is recommended to add /opt/ona/bin to your $PATH environment variable
 #
-# Add the following line to your system named.conf file. Probably in /etc/bind/named.conf or named.conf.local depending on your system.
-# The placement of this line could vary depending on how your distro organizes named.  named.conf.local should be used for ubuntu/debian based systems.
+# Add the following line to your system named.conf file. Probably in /etc/bind/named.conf
+# or named.conf.local depending on your system. The placement of this line could vary
+# depending on how your distro organizes named.  named.conf.local should be used for
+# ubuntu/debian based systems.
 #
 #     include "/opt/ona/etc/bind/named.conf.ona";
 #
 # You will need to execute the following dcm commands to automatically create the appropriate module entries:
 #
 # NOTE: this script was developed and tested on an ubuntu box.  Your mileage may vary on other distros.
-# NOTE: On my ubuntu box I had to modify the apparmor configuration in /etc/apparmor.d/usr.sbin.named to include "/opt/ona/etc/bind/** r,"
+# NOTE: On my ubuntu box I had to modify the apparmor configuration in 
+#       /etc/apparmor.d/usr.sbin.named to include "/opt/ona/etc/bind/** r,"
 # NOTE: to view example configs in the GUI you need to set build_dns_type to "bind" in the sys_config table
 #
 # -----------------------------------------------------------------------
