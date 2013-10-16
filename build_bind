@@ -216,7 +216,7 @@ fi
 # though for now I'm rebuilding all the zones anyway.
 #
 # Or a simple /etc/init.d/bind9 reload would work
-if ! $SYSTEMINT
+if ! $SYSTEMINIT
 then
     ONA_LOG "ERROR => Unable to reload the named daemon using the command ${SYSTEMINIT}."
     ABEND
