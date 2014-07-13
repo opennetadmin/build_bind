@@ -395,7 +395,7 @@ EOF
         if (strtotime($dnsrecord['ebegin']) < 0) continue;
 
         // If there are notes, put the comment character in front of it
-        if ($dnsrecord['notes']) $dnsrecord['notes'] = '; '.$dnsrecord['notes'];
+        if ($dnsrecord['notes']) $dnsrecord['notes'] = '; '.str_replace("\n", "; ", $dnsrecord['notes']);
 
         // If the ttl is empty then make it truely empty
         if ($dnsrecord['ttl'] == 0) $dnsrecord['ttl'] = '';
