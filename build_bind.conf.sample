@@ -3,9 +3,10 @@
 # for things like chroot jails etc
 ONA_PATH="${ONABASE}/etc/bind"
 
-# Get the local hosts FQDN.  It will be an assumption!! that it is the same as the hostname in ONA
-# Also, the use of hostname -f can vary from system type to system type.  be aware!
-SRV_FQDN="$(hostname -f)"
+# Define the FQDN of the local server.  That it is the same as the hostname in ONA
+# It is recommended to hard code the host name rather than using "$(hostname -f)"
+# since it relies on a system with a proper hostname and domain configuration
+SRV_FQDN="ns01.example.com"
 
 # Path to the dcm.pl command.  Also include any options that might be needed
 DCM_PATH="${ONABASE}/bin/dcm.pl"
@@ -13,18 +14,21 @@ DCM_PATH="${ONABASE}/bin/dcm.pl"
 # Define path for curl binary requires if pulling templates from remote web server
 CURL_PATH="/usr/bin/curl"
 
-# Specify a URL to a directory located on a web server containing domain based
-# footers with additional DNS records to be appended to respective DNS zones.
-# Using this method footer files don't have to be manually synced between
+# Specify a URL to a directory located on a web server used to store domain based
+# footers. Each file contains additional DNS records to be appended to respective
+# local DNS zones generated from ONA.
+#
+# Using this method footers don't have to be manually synced between
 # name servers. The remote path can be located on the web server that also
-# provided for the OpenNetAdmin instance.
+# provided for the OpenNetAdmin instance (preferred way).
 #
 # It is highly recommended to use HTTPS (SSL/TLS) for transport security but
-# at least ip address based access control e.g. using a htaccess file.
-# When using http basic authentication you can embed the user credentials
-# within the URI like this:
+# at least ip address based access control on the target server
+# e.g. using a htaccess file. When using http basic authentication
+# you can embed the user credentials within the URI in the following way:
 #
-# # e.g. FOOTER_URL="https://USERNAME:PASSWORD@ipam.mydomain.tld/zone_footers"
+# e.g. FOOTER_URL="https://USERNAME:PASSWORD@ipam.mydomain.tld/zone_footers"
+#
 FOOTER_URL="https://USER:PASSWORD@ona.domain.tld/zone_footers" # no trailing slash
 
 # The command used to check the configuration syntax prior to restarting the daemon
