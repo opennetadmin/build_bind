@@ -88,7 +88,18 @@ Many modern linux systems use the /etc/cron.d method.  You can put ONA related c
     # Rebuild BIND configuration file and restart daemon every hour
     0 * * * * root /opt/ona/bin/build_bind > /dev/null 2>&1
 
-Footers for zone files
+Configuration (version 1.6+)
+-----
+
+Since version 1.6 the configuration is no longer embedded within the `build_bind` script itself. Instead it uses a separate config file expected at `${ONABASE}/etc/build_bind.conf`.
+
+Simply copy the sample config `build_bind.conf.sample` to etc/ within your base folder and adjust its parameters to fit your needs.
+
+However, you can provide a custom path by using the `-c <PATH>` option as
+well.
+
+
+Fetching Zone Footers from Remote Web Server
 -----
 
 ONA does not yet support DNS records to be placed within zones if
@@ -218,10 +229,6 @@ using TLS. In a medium to large scaled deployment, it almost always
 makes sense to use certificates issued by a public CA. It is recommended
 to use a server that supports Perfect Forward Secrecy such as Apache 2.4
 as it is part of CentOS 7.
-
-
-
-
 
 
 

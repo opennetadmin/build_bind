@@ -91,48 +91,38 @@
 [ ! -r /etc/onabase ] && echo "[$0] ERROR: Unable to read /etc/onabase." && exit 1
 ONABASE=$(cat /etc/onabase)
 
-# this will default to placing data files in /opt/ona/etc/bind, you can update the following for your system as needed
-# for things like chroot jails etc
-ONA_PATH="${ONABASE}/etc/bind"
+# define path to local configuration file and inform if it's not present
+LOCALCONF="${ONABASE}/etc/build_bind.conf"
+[ ! -r ${LOCALCONF} ] && echo "[$0] NOTICE: Local config file ${LOCALCONF} absent, exiting." && exit 1
 
-# Get the local hosts FQDN.  It will be an assumption!! that it is the same as the hostname in ONA
-# Also, the use of hostname -f can vary from system type to system type.  be aware!
-SRV_FQDN="$(hostname -f)"
+#### Process the commandline options
+USAGE="
+Usage: $(basename $0) [-c] [-s <FQDN>] [-b] [-t] [-d]
 
-# Path to the dcm.pl command.  Also include any options that might be needed
-DCM_PATH="${ONABASE}/bin/dcm.pl"
+  -c     Specify the absolute path to a custom config file
+  -s     FQDN of the server you wish to build BIND configs for
+  -b     Enable batch mode (less verbose logging for scripted runs)
+  -t     Enable download of domain specific footers from a web server
+  -d     Enable debug output
+"
 
-# Define path for curl binary requires if pulling templates from remote web server
-CURL_PATH="/usr/bin/curl"
+while getopts "c:sbtd" options; do
+  case $options in
+    c ) LOCALCONF=$OPTARG;;
+    s ) SRV_FQDN=$OPTARG;;
+    b ) BATCHMODE=1;;
+    t ) FOOTERS=1;;
+    d ) DEBUGON=1;;
+    \? ) echo "$USAGE"
+         exit 1;;
+    * ) echo "$USAGE"
+         exit 1;;
+  esac
+done
 
-# Specify a URL to a directory located on a web server containing domain based
-# footers with additional DNS records to be appended to respective DNS zones.
-# Using this method footer files don't have to be manually synced between
-# name servers. The remote path can be located on the web server that also
-# provided for the OpenNetAdmin instance.
-#
-# It is highly recommended to use HTTPS (SSL/TLS) for transport security but
-# at least ip address based access control e.g. using a htaccess file.
-# When using http basic authentication you can embed the user credentials
-# within the URI like this:
-#
-# # e.g. FOOTER_URL="https://USERNAME:PASSWORD@ipam.mydomain.tld/zone_footers"
-FOOTER_URL="https://USER:PASSWORD@ona.domain.tld/zone_footers" # no trailing slash
-
-# The command used to check the configuration syntax prior to restarting the daemon
-CHECKCOMMAND="named-checkconf -z"
-
-# The command used to restart bind
-# two options would be standard init.d or something like RNDC if it is configured
-# in your environment
-SYSTEMINIT="/etc/init.d/named reload"
-
-# Email settings for config_archive to send status information to (diffs etc)
-MAIL_SERVER=mail.example.com            # name or IP of the mail server to use
-MAIL_FROM=ona-build_dhcpd@${SRV_FQDN}   # email address to use in the from field
-MAIL_TO=hostmaster@example.com          # email address(es) to send our notifications to
-
-###################### No need to change anything below here ################################
+# include a local configuration file if present to prevent settings from being
+# overwritten whenever the build_bind script is being updated
+[ ! -r "${LOCALCONF}" ] || source "${LOCALCONF}"
 
 # This will log a message in a standardized way
 # Its job is simple.. take the message that was passed in and log it via some mechanism.
@@ -151,7 +141,7 @@ function MAIL_ALERT {
     # send an email notification
     sendEmail -s $MAIL_SERVER -f $MAIL_FROM -t $MAIL_TO \
               -u "[ONA:$(basename $0)] $SRV_FQDN: Failure during BIND rebuild." \
-              -m "The BIND server '${SRV_FQDN}' has encountered a failure during its last rebuild, please check the status of the server.  You can try the following command on this server to display why this configuration test failed: ${CHECKCOMMAND}"
+              -m "The BIND server '${SRV_FQDN}' has encountered an error during its last rebuild, please check the status of the server.  To investigate further you can execute the following command on the server: ${CHECKCOMMAND}"
     if [ $? -ne 0 ]
     then
         ONA_LOG "ERROR => There was an issue sending the notification email."
@@ -159,38 +149,14 @@ function MAIL_ALERT {
     exit 1
 }
 
-#### Process the commandline options
-USAGE="
-Usage: $(basename $0) [-s <FQDN>] [-b] [-t] [-d]
-
-  -s     FQDN of the server you wish to build BIND configs for
-  -b     Enable batch mode (less logging for scripted runs)
-  -t     Enable download of domain specific footers from a web server
-  -d     Enable debug output
-"
-
-while getopts "s:btd" options; do
-  case $options in
-    b ) BATCHMODE=1;;
-    d ) DEBUGON=1;;
-    t ) FOOTERS=1;;
-    s ) SRV_FQDN=$OPTARG;;
-    \? ) echo "$USAGE"
-         exit 1;;
-    * ) echo "$USAGE"
-         exit 1;;
-  esac
-done
-
-
-# Check that $ONA_PATH directory exists
+# Check if the $ONA_PATH directory exists
 if ! test -d $ONA_PATH/zone_data
 then
     ONA_LOG "ERROR => Unable to find directory '${ONA_PATH}/zone_data', please create it."
     MAIL_ALERT
 fi
 
-# Check that $FOOTER_PATH directory exists
+# Check if $FOOTER_PATH directory exists
 if ! test -d $FOOTER_PATH
 then
     ONA_LOG "ERROR => Unable to find directory '${FOOTER_PATH}', please create it."
