@@ -29,17 +29,35 @@ You should now see the configuration being built real time in the web interface 
 This now also exposes the dcm.pl module called `build_bind_conf` and `build_bind_domain`.  These will be used by the build_bind script to extract the configuration.  It is also used by the web interface to generate configuration data.
 
 There are a few configuration options in the build script that should be examined.  Edit the file `/opt/ona/bin/build_bind` and adjust the following options as needed:
-    
+
+
     # this will default to placing data files in /opt/ona/etc/bind, you can update the following for your system as needed
     # for things like chroot jails etc
     ONA_PATH="${ONABASE}/etc/bind"
     
     # Get the local hosts FQDN.  It will be an assumption!! that it is the same as the hostname in ONA
     # Also, the use of hostname -f can vary from system type to system type.  be aware!
-    SRV_FQDN=`hostname -f`
+    SRV_FQDN="$(hostname -f)"
     
     # Path to the dcm.pl command.  Also include any options that might be needed
     DCM_PATH="${ONABASE}/bin/dcm.pl"
+    
+    # Define path for curl binary requires if pulling templates from remote web server
+    CURL_PATH="/usr/bin/curl"
+    
+    # Specify a URL to a directory located on a web server containing domain based
+    # footers with additional DNS records to be appended to respective DNS zones.
+    # Using this method footer files don't have to be manually synced between
+    # name servers. The remote path can be located on the web server that also
+    # provided for the OpenNetAdmin instance.
+    #
+    # It is highly recommended to use HTTPS (SSL/TLS) for transport security but
+    # at least ip address based access control e.g. using a htaccess file.
+    # When using http basic authentication you can embed the user credentials
+    # within the URI like this:
+    #
+    # # e.g. FOOTER_URL="https://USERNAME:PASSWORD@ipam.mydomain.tld/zone_footers"
+    FOOTER_URL="https://USER:PASSWORD@ona.domain.tld/zone_footers" # no trailing slash
     
     # The command used to check the configuration syntax prior to restarting the daemon
     CHECKCOMMAND="named-checkconf -z"
@@ -47,12 +65,12 @@ There are a few configuration options in the build script that should be examine
     # The command used to restart bind
     # two options would be standard init.d or something like RNDC if it is configured
     # in your environment
-    SYSTEMINIT="/etc/init.d/bind9 reload"
+    SYSTEMINIT="/etc/init.d/named reload"
     
     # Email settings for config_archive to send status information to (diffs etc)
-    MAIL_SERVER=mail.example.com               # name or IP of the mail server to use
-    MAIL_FROM=ona-build_dhcpd@$SRV_FQDN        # email address to use in the from field
-    MAIL_TO=oncall@example.com                 # email address(es) to send our notifications to
+    MAIL_SERVER=mail.example.com            # name or IP of the mail server to use
+    MAIL_FROM=ona-build_dhcpd@${SRV_FQDN}   # email address to use in the from field
+    MAIL_TO=hostmaster@example.com          # email address(es) to send our notifications to
 
 Most BIND servers default to using `/etc/bind/named.conf` or similar as their config.  You should make this a symbolic link to `/opt/ona/etc/bind/named.conf.ona` or do an `include` of this config file in your main named.conf. 
 
@@ -69,4 +87,115 @@ Many modern linux systems use the /etc/cron.d method.  You can put ONA related c
     
     # Rebuild BIND configuration file and restart daemon every hour
     0 * * * * root /opt/ona/bin/build_bind > /dev/null 2>&1
+
+Configuration (version 1.6+)
+-----
+
+Since version 1.6 the configuration is no longer embedded within the `build_bind` script itself. Instead it uses a separate config file expected at `${ONABASE}/etc/build_bind.conf`.
+
+Simply copy the sample config `build_bind.conf.sample` to etc/ within your base folder and adjust its parameters to fit your needs. However, it is also possible to provide a custom config using the `-c <PATH>/CONFIG` option.
+
+
+Fetching Zone Footers from Remote Web Server
+-----
+
+ONA does not yet support DNS records to be placed within DNS zones as long as those aren't handled through ONA itself. For instance, as of the moment it *is not possible* to add records for mail servers (MX) or canonical names (CNAMES) that are pointing to external servers. Creating local zone records for such email servers is one way to work around this limitation. However, it's fairly inconvenient especially when facing the fact that addresses for MX servers of large providers like Google are operated using volatile ip pools.
+
+The reason why this wasn't fixed within ONA yet? It is related to the current database design. Matt explains it in the following threads:
+
+Non ONA managed CNAMES (external DNS references)
+https://github.com/opennetadmin/ona/issues/70
+
+Adding remote host or CNAME - DNS import
+http://opennetadmin.com/forum_archive/4/t-65.html
+
+To overcome this limitation for the moment, one can use zone footers in order to add necessary DNS records per zone e.g. using a script that's executed right after zones were generated by the build_bind script.
+
+At the moment `build_dns` tries to implement this using so called 'remote footers'. By simply specifying the `-t` option `build_dns` can look for domain specific footers within a directory on a remote web server. Once a match was found the content of the footer file will be automatically appended to the local zone of the respective domain.
+
+This approach allows for footers to be kept centrally without the need to manually synchronize them across servers. E.g. in order to add the global mail exchange servers of Google to the zone file of `example.com` do the following:
+
+    [root@ona ~]# cd /var/www/html/ona/
+    [root@ona ona]# mkdir zone_footers
+    [root@ona ona]# cat <<'HERE' > zone_footers/example.com.footer
+    ; MX Records
+    @   1800    IN  MX  10  aspmx.l.google.com
+    @   1800    IN  MX  20  alt1.aspmx.l.google.com
+    @   1800    IN  MX  30  alt2.aspmx.l.google.com
+    @   1800    IN  MX  40  aspmx2.googlemail.com
+    @   1800    IN  MX  50  aspmx3.googlemail.com
+    HERE
+
+In this example we're deploying the footers on the web server that is also hosting our ONA instance. This way one can re-use the .htpasswd file that's used to protect access to the dcm.php script. You do restrict access to your dcm.php script, don't you?
+
+A bit out of scope but here's a snippet for a httpd virtual host containing the directives required to secure your installation including the footers folder:
+
+
+    <Files dcm.php>
+      Order deny,allow
+      # name server ip address
+      allow from 10.238.13.8
+      allow from localhost
+  
+      AuthUserFile /opt/ona/www/.htpasswd
+      AuthName "dcm access"
+      AuthType basic
+      Require valid-user
+    </Files>
+  
+    <Location "/zone_footers">
+      Order deny,allow
+      # name server ip address
+      allow from 10.238.13.8
+      allow from localhost
+
+      Options Indexes MultiViews FollowSymLinks
+      AllowOverride All
+
+      AuthUserFile /opt/ona/www/.htpasswd
+      AuthName "footer access"
+      AuthType basic
+      Require valid-user
+    </Location>
+
+
+Create a separate account for authenticating access to the footers directory (the username reflects within the web server log file).
+
+
+    [root@ona ona]# htpasswd /opt/ona/www/.htpasswd footers
+    New password: *******
+    Re-type new password: ******* 
+    Adding password for user footers
+
+
+On the name server you should now be able to fetch the footer for zone example.com we've created earlier:
+
+
+    [root@ns01 ~]# curl -s --output example.com.footer https://footers:MYPASSWORD@ona.domain.tld/zone_footers/example.com.footer
+    [root@ns01 ~]# cat example.com.footer
+    <MX RECORDS..>
+
+
+Lets run `build_bind` with the `-t` option and see what happens:
+
+
+    [root@ns01 ~]# /opt/ona/bin/build_bind -t
+    Sep 30 22:51:17 [ONA:build_bind]: INFO => Building BIND DNS config for ns01.example.com...
+    Sep 30 22:51:23 [ONA:build_bind]: INFO => Scanning for footers on remote server ...
+    Sep 30 22:51:23 [ONA:build_bind]: INFO => Found a match for zone example.com.. appending.
+    Sep 30 22:51:26 [ONA:build_bind]: INFO => Testing new config files for SYNTAX only...
+    [...]
+    Sep 30 23:01:37 [ONA:build_bind]: INFO => Completed BIND configuration
+    extraction and daemon reload.
+
+    [root@ns01 ~]# tail -6 /var/named/zone_data/named-example.com 
+    ; MX Records
+    @   1800    IN  MX  10  aspmx.l.google.com
+    @   1800    IN  MX  20  alt1.aspmx.l.google.com
+    @   1800    IN  MX  30  alt2.aspmx.l.google.com
+    @   1800    IN  MX  40  aspmx2.googlemail.com
+    @   1800    IN  MX  50  aspmx3.googlemail.com
+
+
+Hint: It is highly recommended to implement transport security by using TLS. In a medium scale deployment w/o a proper way of distributing security certificates it almost always makes sense to use certs issued by a public CA. It is furthermore recommended to use a platform that delivers support for Perfect Forward Secrecy such as Apache 2.4 as part of CentOS 7.
 
