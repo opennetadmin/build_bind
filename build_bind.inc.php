@@ -243,7 +243,7 @@ EOF
                 // TODO: if there are no rows then bail
                 // TODO: look for static master list stored in DB and append it to the list.
 
-                $text .= "zone \"{$domain['fqdn']}\" in {\n  type slave;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";\n";
+                $text .= "zone \"{$domain['fqdn']}\" in {\n  type slave;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";\n  masterfile-format text;\n";
                 // Print the master statement
                 $text .= "  masters { ";
                 foreach ($records as $master ) {
