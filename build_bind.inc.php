@@ -363,10 +363,8 @@ EOF
     $rows = $rs->RecordCount();
 
     // check if this is a ptr domain that has delegation
-    if (strpos(str_replace('in-addr.arpa', '', $domain['fqdn']),'-')) {
-        $ptrdelegation=true;
-    }
-    if (strpos(str_replace('ip6.arpa', '', $domain['fqdn']),'-')) {
+    $ptrdelegation=false;
+    if (strpos(preg_replace("/[ip6nadr-]+.arpa/", '', $domain['fqdn']),'-') !== FALSE) {
         $ptrdelegation=true;
     }
 
