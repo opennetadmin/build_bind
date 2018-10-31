@@ -347,9 +347,14 @@ EOF
 
     // loop through records and display them
     $q="
-    SELECT  *
-    FROM    dns
-    WHERE   domain_id = {$domain['id']}
+    SELECT  dns.*
+      FROM    dns, domains dom
+      WHERE   dns.domain_id = dom.id
+        AND ( domain_id = {$domain['id']}
+          OR ( dom.parent_id = {$domain['id']}
+            AND dns.type = 'NS'
+          )
+        )
     ORDER BY type";
 
 
