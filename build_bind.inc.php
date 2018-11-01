@@ -437,6 +437,11 @@ EOF
             if ($dns_record['domain_id'] == $domain['id']){
                 $fqdn = $dnsrecord['name'].$domain['fqdn'];
             } else {
+                // if this is a reverse zone we don't need glue records - skip
+                if (preg_match('/.(in-addr|ip6).arpa$/', $domain['fqdn'])) {
+                    continue;
+                }
+
                 list($status, $rows, $other_domain) =
                     ona_get_domain_record(array('id' => $dnsrecord['domain_id']));
                 if ($status or !$rows) {
