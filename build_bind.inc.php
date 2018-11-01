@@ -350,9 +350,18 @@ EOF
     SELECT  dns.*
       FROM    dns, domains dom
       WHERE   dns.domain_id = dom.id
-        AND ( domain_id = {$domain['id']}
-          OR ( dom.parent_id = {$domain['id']}
-            AND dns.type = 'NS'
+        AND ( domain_id = {$domain['id']} -- direct zone entries
+          OR ( -- NS records of subdomains:
+            dom.parent_id = {$domain['id']} AND dns.type = 'NS'
+          ) OR (
+            -- A records for out of zone DNS servers:
+            dns.id IN (
+              SELECT dns_id
+                FROM dns, domains dom
+                WHERE dns.domain_id = dom.id
+                  AND dom.parent_id = {$domain['id']}
+                  AND dns.type = 'NS'
+            ) AND domain_id <> {$domain['id']}
           )
         )
     ORDER BY type";
@@ -424,7 +433,20 @@ EOF
             // Determine A record type if it is IPv6
             $dnsrecord['type'] = (strpos($interface['ip_addr_text'],':') ? 'AAAA' : 'A');
 
-            $fqdn = $dnsrecord['name'].$domain['fqdn'];
+            // check if this is an A record for a child domain:
+            if ($dns_record['domain_id'] == $domain['id']){
+                $fqdn = $dnsrecord['name'].$domain['fqdn'];
+            } else {
+                list($status, $rows, $other_domain) =
+                    ona_get_domain_record(array('id' => $dnsrecord['domain_id']));
+                if ($status or !$rows) {
+                    printmsg("ERROR => Unable to find domain record!",3);
+                    $self['error'] = "ERROR => Unable to find domain record!";
+                    return(array(5, $self['error'] . "\n"));
+                }
+                $fqdn = $dnsrecord['name'].$other_domain['fqdn'];
+            }
+
             $text .= sprintf("%-50s %-8s IN  %-8s %-30s %s\n" ,$fqdn.'.',$dnsrecord['ttl'],$dnsrecord['type'],$interface['ip_addr_text'],$dnsrecord['notes']);
         }
 
@@ -484,7 +506,24 @@ EOF
             // Get the name info that the cname points to
             list($status, $rows, $ns) = ona_get_dns_record(array('id' => $dnsrecord['dns_id']), '');
 
-            $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n" ,$domain['fqdn'].'.',$dnsrecord['ttl'],$dnsrecord['type'],$ns['name'],$ns['domain_fqdn'].'.',$dnsrecord['notes']);
+            // check if this is an NS record for a child domain:
+            if ($dnsrecord['domain_id'] == $domain['id']){
+                $domain_name = $domain['fqdn'];
+            } else {
+                list($status, $rows, $other_domain) =
+                    ona_get_domain_record(array('id' => $dnsrecord['domain_id']));
+                if ($status or !$rows) {
+                    printmsg("ERROR => Unable to find domain record!",3);
+                    $self['error'] = "ERROR => Unable to find domain record!";
+                    return(array(5, $self['error'] . "\n"));
+                }
+                $domain_name = $other_domain['fqdn'];
+            }
+
+            $text .= sprintf("%-50s %-8s IN  %-8s %s.%-30s %s\n",
+                             $domain_name.'.', $dnsrecord['ttl'],
+                             $dnsrecord['type'], $ns['name'],
+                             $ns['domain_fqdn'].'.', $dnsrecord['notes']);
         }
 
         if ($dnsrecord['type'] == 'MX') {
