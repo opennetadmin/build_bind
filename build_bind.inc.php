@@ -542,7 +542,7 @@ EOF
                 $name = $dnsrecord['name'].$domain['fqdn'];
             }
             else {
-                $name = $domain['name'];
+                $name = $domain['fqdn'];
             }
             $text .= sprintf("%-50s %-8s IN  %s %-5s %s.%-30s %s\n" ,$name.'.',$dnsrecord['ttl'],$dnsrecord['type'],$dnsrecord['mx_preference'],$mx['name'],$mx['domain_fqdn'].'.',$dnsrecord['notes']);
         }
