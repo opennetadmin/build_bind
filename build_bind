@@ -106,9 +106,13 @@ Usage: $(basename $0) [-c] [-s <FQDN>] [-b] [-t] [-d]
   -d     Enable debug output
 "
 
-while getopts "c:sbtd" options; do
+# include a default configuration file if present to prevent settings from being
+# overwritten whenever the build_bind script is being updated
+[ ! -r "${LOCALCONF}" ] || source "${LOCALCONF}"
+
+while getopts "c:s:btd" options; do
   case $options in
-    c ) LOCALCONF=$OPTARG;;
+    c ) LOCALCONF1=$OPTARG;;
     s ) SRV_FQDN=$OPTARG;;
     b ) BATCHMODE=1;;
     t ) FOOTERS=1;;
@@ -122,7 +126,7 @@ done
 
 # include a local configuration file if present to prevent settings from being
 # overwritten whenever the build_bind script is being updated
-[ ! -r "${LOCALCONF}" ] || source "${LOCALCONF}"
+[ ! -r "${LOCALCONF1}" ] || source "${LOCALCONF1}"
 
 # This will log a message in a standardized way
 # Its job is simple.. take the message that was passed in and log it via some mechanism.
