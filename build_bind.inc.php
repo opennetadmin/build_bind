@@ -91,25 +91,26 @@ EOF
         return(array(3, $self['error'] . "\n"));
     }
 
-    // For the given server id. find all domains for that server
-    list($status, $rows, $records) = db_get_records($onadb, 'dns_server_domains', array('host_id' => $shost['id']), '');
+    // For the given server id. find all domains for that server that need rebuilt
+    list($status, $rows, $records) = db_get_records($onadb, 'dns_server_domains', array('host_id' => $shost['id'], 'rebuild_flag' => 1), '');
 
-    //MP: TODO - for now this just returns a list of all the domains.  In the future this could/should just return
-    // a list of domains that need refreshed.  This would imply a version to do ALL and one for just UPDATED domains.
+    //This just returns a list of domains that need refreshed.  
     foreach ($records as $sdomain) {
         list($status, $rows, $domain) = ona_get_domain_record(array('id' => $sdomain['domain_id']));
         $text .= $domain['fqdn'] . "\n";
+        // TRIGGER: flag the current domain/server as built
+        list($status, $rows) = db_update_record($onadb, 'dns_server_domains', array('domain_id' => $sdomain['domain_id'], 'host_id' => $shost['id']), array('rebuild_flag' => 0));
+        if ($status) {
+            $self['error'] = "ERROR => db_update_record() Unable to update rebuild flags for domain.: {$self['error']}";
+            printmsg($self['error'],0);
+            return(array(7, $self['error'] . "\n"));
+        }
+
     }
 
     // Return the list
     return(array(0, $text));
 }
-
-
-
-
-
-
 
 
 
