@@ -151,7 +151,7 @@ function build_bind_conf($options="") {
     global $conf, $self, $onadb;
 
     // Version - UPDATE on every edit!
-    $version = '1.51';
+    $version = '1.52';
 
     printmsg("DEBUG => build_bind_conf({$options}) called", 3);
 
@@ -229,7 +229,7 @@ EOF
         switch (strtolower($sdomain['role'])) {
             case "forward":
                 //TODO: fixme.. this needs IPs like slaves do.. no file
-                $text .= "zone \"{$domain['fqdn']}\" in {\n  type forward;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";}\n";
+                $text .= "zone \"{$domain['fqdn']}\" in {\n  type forward;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";\n};\n\n";
                 break;
             case "master":
                 $text .= "zone \"{$domain['fqdn']}\" in {\n  type master;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";\n};\n\n";
