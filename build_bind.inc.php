@@ -228,15 +228,27 @@ EOF
         // what is the role for this server.
         switch (strtolower($sdomain['role'])) {
             case "forward":
-                //TODO: fixme.. this needs IPs like slaves do.. no file
-                $text .= "zone \"{$domain['fqdn']}\" in {\n  type forward;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";}\n";
+                // get the IP addresses for the master domain servers for this domain (these will be the forwarders)
+                list($status, $rows, $records) = db_get_records($onadb, 'dns_server_domains', array('domain_id' => $domain['id'], 'role' => 'master'), '');
+
+                $text .= "zone \"{$domain['fqdn']}\" in {\n  type forward;\n  forwarders { "; // \n  };\n};\n\n";
+                // Add each master as a forwarder
+                foreach ($records as $master ) {
+                    // Lookup a bunch of crap.. this should be done better.
+                    list($status, $rows, $rec) = ona_get_host_record(array('id' => $master['host_id']));
+                    list($status, $rows, $rec) = ona_get_dns_record(array('id' => $rec['primary_dns_id']));
+                    list($status, $rows, $rec) = ona_get_interface_record(array('id' => $rec['interface_id']));
+                    $text .= $rec['ip_addr_text']."; ";
+                }
+                $text .= "  };\n";
+                $text .= "};\n\n";
                 break;
+
             case "master":
                 $text .= "zone \"{$domain['fqdn']}\" in {\n  type master;\n  file \"/{$options['path']}/named-{$domain['fqdn']}\";\n};\n\n";
                 break;
 
             case "slave":
-
                 // get the IP addresses for the master domain servers for this domain
                 list($status, $rows, $records) = db_get_records($onadb, 'dns_server_domains', array('domain_id' => $domain['id'], 'role' => 'master'), '');
 
