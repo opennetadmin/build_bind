@@ -11,7 +11,7 @@ Install
   * Ensure you have the following prerequisites installed:
     * A BIND DNS server. It is not required to be on the same host as the ONA system.
     * `sendEmail` for notification messages. [Download here](http://caspian.dotconf.net/menu/Software/SendEmail/) or use the package from your distribution.
-    * A functioning dcm.pl install on your DHCP server.
+    * A functioning dcm.pl install on your DNS server.
   * Download the archive and place it in your $ONABASE/www/local/plugins directory, the directory must be named `build_bind`
   * Make the plugin directory owned by your webserver user I.E.: `chown -R www-data /opt/ona/www/local/plugins/build_bind`
   * From within the GUI, click _Plugins->Manage Plugins_ while logged in as an admin user
